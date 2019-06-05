@@ -13,6 +13,7 @@
 #ifndef _TOOLS_H
 #define _TOOLS_H
 #define	MAXLINE	4096			
+#define HSY_STD_BUFSIZE 4096
 // err funcion declerations
 void    err_msg(const char *, ...);                     /* {App misc_source} */
 void    err_dump(const char *, ...) __attribute__((noreturn));

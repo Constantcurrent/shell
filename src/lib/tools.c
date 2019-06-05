@@ -81,7 +81,6 @@ int dopath(char ls_mode)
 		return(myfunc(fullpath, &statbuf, FTW_NS));
 	if (S_ISDIR(statbuf.st_mode) == 0)	/* not a directory */
 		return(myfunc(fullpath, &statbuf, FTW_F));
-
 	/*
 	 * It's a directory.  First call func() for the directory,
 	 * then process each filename in the directory.

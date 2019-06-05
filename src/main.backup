@@ -17,6 +17,106 @@ int hsy_num_cmds() {
   return (sizeof(cmds_str) / sizeof(char *));
 }
 
+int getStdFd(char** argv,int commandNum) { // 给用户使用的函数，用以执行用户输入的命令
+	pid_t pid = fork();
+	if (pid == -1) {
+		return ERROR_FORK;
+	} else if (pid == 0) {
+		/* 获取标准输入、输出的文件标识符 */
+		int inFds = dup(STDIN_FILENO);
+		int outFds = dup(STDOUT_FILENO);
+   
+		int result = cmdRedi(0, commandNum);
+		
+		/* 还原标准输入、输出重定向 */
+		dup2(inFds, STDIN_FILENO);
+		dup2(outFds, STDOUT_FILENO);
+		exit(result);
+	} else {
+		int status;
+		waitpid(pid, &status, 0);
+		return WEXITSTATUS(status);
+	}
+}
+int cmdRedi(char** argv,int left, int right) { // 所要执行的指令区间[left, right)，不含管道，可能含有重定向
+	if (!isCommandExist(commands[left])) { // 指令不存在
+		return ERROR_COMMAND;
+	}	
+
+	/* 判断是否有重定向 */
+	int inNum = 0, outNum = 0;
+	char *inFile = NULL, *outFile = NULL;
+	int endIdx = right; // 指令在重定向前的终止下标
+
+	for (int i=left; i<right; ++i) {
+		if (strcmp(commands[i], COMMAND_IN) == 0) { // 输入重定向
+			++inNum;
+			if (i+1 < right)
+				inFile = commands[i+1];
+			else return ERROR_MISS_PARAMETER; // 重定向符号后缺少文件名
+
+			if (endIdx == right) endIdx = i;
+		} else if (strcmp(commands[i], COMMAND_OUT) == 0) { // 输出重定向
+			++outNum;
+			if (i+1 < right)
+				outFile = commands[i+1];
+			else return ERROR_MISS_PARAMETER; // 重定向符号后缺少文件名
+				
+			if (endIdx == right) endIdx = i;
+		}
+	}
+	/* 处理重定向 */
+	if (inNum == 1) {
+		FILE* fp = fopen(inFile, "r");
+		if (fp == NULL) // 输入重定向文件不存在
+			return ERROR_FILE_NOT_EXIST;
+		
+		fclose(fp);
+	}
+	
+	if (inNum > 1) { // 输入重定向符超过一个
+		return ERROR_MANY_IN;
+	} else if (outNum > 1) { // 输出重定向符超过一个
+		return ERROR_MANY_OUT;
+	}
+	int result = RESULT_NORMAL;
+	pid_t pid = vfork();
+	if (pid == -1) {
+		result = ERROR_FORK;
+	} else if (pid == 0) {
+		/* 输入输出重定向 */
+		if (inNum == 1)
+			freopen(inFile, "r", stdin);
+		if (outNum == 1)
+			freopen(outFile, "w", stdout);
+
+		/* 执行命令 */
+		char* comm[BUF_SZ];
+		for (int i=left; i<endIdx; ++i)
+			comm[i] = commands[i];
+		comm[endIdx] = NULL;
+		execvp(comm[left], comm+left);
+		exit(errno); // 执行出错，返回errno
+	} else {
+		int status;
+		waitpid(pid, &status, 0);
+		int err = WEXITSTATUS(status); // 读取子进程的返回码
+
+		if (err) { // 返回码不为0，意味着子进程执行出错，用红色字体打印出错信息
+			printf("\e[31;1mError: %s\n\e[0m", strerror(err));
+		}
+	}
+	return result;
+}
+/*
+  function implementations.
+*/
+
+/**
+   @brief Bultin command: change directory.
+   @param args List of args.  args[0] is "cd".  args[1] is the directory.
+   @return Always returns 1, to continue executing.
+ */
 int hsy_cd(char **args,int argc)
 { 
   //printf("%s\n",args[1]);
@@ -72,7 +172,7 @@ int ls_option(char** argv,int len,int index,int ls_mode){
         tmp_path=path_alloc(&tmp_size);
         strcpy(tmp_path,cur_path);
         strcat(tmp_path,"/");
-        if(index+1==len||argv[index][0]=='>'||argv[index][0]=='<'||argv[index][0]) lsdir(cur_path,ls_mode);
+        if(index+1==len||argv[index][0]=='>'||argv[index][0]=='<') lsdir(cur_path,ls_mode);
         else{
           if(argv[index][0]=='/')    lsdir(argv[index],ls_mode);
           else{
@@ -167,6 +267,8 @@ int hsy_execute(char **args,int argc)
   }
 
   for (i = 0; i < hsy_num_cmds(); i++) {
+    if(IS_DIRECTION)
+      return comWithRedirection(argv,left,argc);
     if (strcmp(args[0], cmds_str[i]) == 0) {
       return (*cmds_func[i])(args,argc);
     }
@@ -178,7 +280,50 @@ int hsy_execute(char **args,int argc)
    @brief Read a line of input from stdin.
    @return The line from stdin.
  */
+char *hsy_read_line(void)
+{
+  int bufsize = HSY_RL_BUFSIZE;
+  int position = 0;
+  char *buffer = malloc(sizeof(char) * bufsize);
+  int c;
 
+  if (!buffer) {
+    fprintf(stderr, "lsh: allocation error\n");
+    exit(EXIT_FAILURE);
+  }
+
+  while (1) {
+    // Read a character
+    c = getchar();
+
+    if (c == EOF) {
+      exit(EXIT_SUCCESS);
+    } else if (c == '\n') {
+      buffer[position] = '\0';
+      return buffer;
+    } else {
+      buffer[position] = c;
+    }
+    position++;
+
+    // If we have exceeded the buffer, reallocate.
+    if (position >= bufsize) {
+      bufsize += HSY_RL_BUFSIZE;
+      buffer = realloc(buffer, bufsize);
+      if (!buffer) {
+        fprintf(stderr, "lsh: allocation error\n");
+        exit(EXIT_FAILURE);
+      }
+    }
+  }
+  return buffer;
+}
+
+/**
+   @brief Split a line into tokens (very naively).
+   @param line The line.
+   @return Null-terminated array of tokens.
+ */
 char **hsy_split_line(char *line,int* argc)
 {
   int bufsize = HSY_TOK_BUFSIZE, position = 0;
@@ -237,6 +382,8 @@ void hsy_loop(void)
     printf("%s %s@hsy: ",envir,cur_path);
     line = hsy_read_line();
 //    printf("%s\n",line);
+    args = hsy_split_line(line,&argc);
+    status = hsy_execute(args,argc);
     free(line);
     free(args);
   } while (status);

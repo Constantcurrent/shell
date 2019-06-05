@@ -3,11 +3,13 @@
 #define HSY_TOK_BUFSIZE 64
 #define HSY_TOK_DELIM " \t\r\n\a"
 #define HSY_RL_BUFSIZE 1024
+#define HSY_STD_BUFSIZE 4096
 int hsy_cd(char**,int);
 int hsy_help(char**,int);
 int hsy_exit(char**,int);
 int hsy_bg(char**,int);
 int hsy_ls(char**,int);
+int cmdRedi(char**,int,int);
 int hsy_launch(char**,int);
 char **hsy_split_line(char*,int* );
 char *hsy_read_line(void);

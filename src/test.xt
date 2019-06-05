@@ -1,0 +1,13 @@
+total 68
+drwxr-xr-x 4 root root  4096 6月   4 17:20 .
+drwxr-xr-x 5 root root  4096 6月   3 09:25 ..
+drwxr-xr-x 2 root root  4096 6月   4 16:04 include
+drwxr-xr-x 2 root root  4096 6月   4 16:06 lib
+-rwxr-xr-x 1 root root 24328 6月   3 09:29 main
+-rw-r--r-- 1 root root  7268 6月   4 17:13 main.c
+-rw-r--r-- 1 root root   529 5月  29 00:59 Make.defines.linux
+-rw-r--r-- 1 root root   344 5月  28 23:33 Makefile
+-rw-r--r-- 1 root root    41 5月  29 00:56 Make.libapue.inc
+-r-xr-xr-x 1 root root   467 5月  23 22:29 systype.sh
+-rw-r--r-- 1 root root   587 6月   4 17:15 test.txt
+-rw-r--r-- 1 root root     0 6月   4 17:20 test.xt
