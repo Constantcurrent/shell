@@ -1,22 +1,5 @@
-#include "tool.h"
-#include <errno.h>
-#include <limits.h>
+#include "tools.h"
 
-#ifdef  PATH_MAX
-static long     pathmax = PATH_MAX;
-#else
-static long     pathmax = 0;
-#endif
-#define _XOPEN_SOURCE 700
-static long     posix_version = 0;
-static long     xsi_version = 0;
-
-/* If PATH_MAX is indeterminate, no guarantee this is adequate */
-#define PATH_MAX_GUESS  1024
-/**
-   this is referenced for read the content of directory
-   
-*/
 int dopath(char* pathname, int ls_mode)
 {
 	struct stat statbuf;
@@ -24,27 +7,23 @@ int dopath(char* pathname, int ls_mode)
 	DIR *dp;
 	int ret=1, n;
         bool is_al=false;
-	if (lstat(fullpath, &statbuf) < 0)	/* stat error */
-		return(myfunc(fullpath, &statbuf, FTW_NS));
+	if (lstat(pathname, &statbuf) < 0)	/* stat error */
+		return(myfunc(pathname, &statbuf, FTW_NS));
 	if (S_ISDIR(statbuf.st_mode) == 0)	/* not a directory */
-		return(myfunc(fullpath, &statbuf, FTW_F));
+		return(myfunc(pathname, &statbuf, FTW_F));
 	/*
 	 * It's a directory.  First call func() for the directory,
 	 * then process each filename in the directory.
 	 */
-	if ((ret = myfunc(fullpath, &statbuf, FTW_D)) != 0)
+	if ((ret = myfunc(pathname, &statbuf, FTW_D)) != 0)
 		return(ret);
-	n = strlen(fullpath);
-	if (n + NAME_MAX + 2 > pathlen) { // expand path buffer 
-		pathlen *= 2;
-		if ((fullpath = realloc(fullpath, pathlen)) == NULL)
-			err_sys("realloc failed");
-	}
-	fullpath[n++] = '/';
-	fullpath[n] = 0;
-         if ((dp = opendir(fullpath)) == NULL)   /* can't read directory */
-                return(myfunc(fullpath, &statbuf, FTW_DNR));
-        char* tmp_path=path_alloc(&pathlen); // directory entry path
+	n = strlen(pathname);
+        if(pathname[n-1]!='/')
+	  pathname[n++] = '/';
+	pathname[n] = 0;
+         if ((dp = opendir(pathname)) == NULL)   /* can't read directory */
+                return(myfunc(pathname, &statbuf, FTW_DNR));
+        char tmp_path[PATHMAX]; // directory entry path
         struct stat entry_stat;// directory entry stat structure
         while ((dirp = readdir(dp)) != NULL) {
              switch(ls_mode){
@@ -60,7 +39,7 @@ int dopath(char* pathname, int ls_mode)
                            ls_mode=LS_AL;
                        }
                        printf("%s  ",dirp->d_name);
-                       strcpy(tmp_path,fullpath);
+                       strcpy(tmp_path,pathname);
                        strcat(tmp_path,dirp->d_name);
                        lstat(tmp_path,&entry_stat);
                        // print the entry information
@@ -88,7 +67,7 @@ int dopath(char* pathname, int ls_mode)
         //fullpath[n-1] = 0;    /* erase everything from slash onward */
 
         if (closedir(dp) < 0)
-                err_ret("can't close directory %s", fullpath);
+                err_ret("can't close directory %s", pathname);
         return(ret);
 }
 
